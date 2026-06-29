@@ -373,6 +373,7 @@ function render(){
   else if(view==='produtos') renderProdutos(root);
   else if(view==='vendas') renderVendas(root);
   else if(view==='importar') renderImportar(root);
+  else if(view==='insumos') renderInsumos(root);
 }
 
 // =====================================================================
@@ -481,17 +482,28 @@ function renderProdutos(root){
   }
   configurarNav();
 }
-function detalheProduto(cod){
-  const p=findSku(cod), e=calcularCustoTotalProduto(p), root=document.getElementById('content');
+// bloco de detalhamento técnico (KPIs + ledger) reutilizado em Produtos e Vendas
+function blocoDetalheCusto(e,p){
   const linha=(l,v,s)=>`<tr class="${s?'strong':''}"><td>${l}</td><td class="r">${v}</td></tr>`;
   const maqRows=e.maquinas.map(m=>m?`<tr><td>${m.nome}</td><td>${m.un}</td><td class="r">${m.vel}</td><td class="r">${m.tempo.toFixed(3)}h</td><td class="r">${fmtBRL(m.custo)}</td></tr>`:'').join('');
   const d=e.mp.det;
-  const mpRows=[['Substrato 1',d.DQ],['Substrato 2',d.DS],['Substrato 3',d.DU],['Tinta',d.DW],['Clichês',d.DZ],['Verniz parcial',d.EB],['Verniz total',d.ED],['Cold stamping',d.EF],['Hot stamping',d.EH],['Ribbon',d.EL]]
-    .filter(x=>x[1]>0).map(x=>`<tr><td>${x[0]}</td><td class="r">${fmtBRL(x[1])}</td></tr>`).join('');
-  root.innerHTML=`
-    <div class="page-head"><div><button class="btn-ghost" id="voltar">← Produtos</button>
-      <h1>${p.descricao}</h1><p class="sub mono">${p.codigo} · ${p.grupo} · ${p.modelo}</p></div>
-      <button class="btn" data-edit id="editar">Editar SKU</button></div>
+  const nz=(s)=>s&&String(s).trim().toUpperCase()!=='NÃO';
+  const tintaLbl = p.modelo==='DIGITAL'?'Tinta digital (CMYK'+(String(p.coresBranco).toUpperCase()==='SIM'?' + Branco)':')')
+                 : p.modelo==='FLEXOGRÁFICO'?'Tinta flexográfica':'Tinta';
+  // nomes REAIS das matérias-primas (substrato, ribbon, verniz) em vez de rótulos genéricos
+  const mpRows=[
+    [nz(p.sub1)?p.sub1:'Substrato 1', d.DQ],
+    [nz(p.sub2)?p.sub2:'Substrato 2', d.DS],
+    [nz(p.sub3)?p.sub3:'Substrato 3', d.DU],
+    [tintaLbl, d.DW],
+    ['Clichês', d.DZ],
+    [nz(p.vpTipo)?'Verniz parcial · '+p.vpTipo:'Verniz parcial', d.EB],
+    [nz(p.vtTipo)?'Verniz total · '+p.vtTipo:'Verniz total', d.ED],
+    ['Cold stamping', d.EF],
+    ['Hot stamping', d.EH],
+    [nz(p.ribbon)?p.ribbon:'Ribbon', d.EL]
+  ].filter(x=>x[1]>0).map(x=>`<tr><td>${x[0]}</td><td class="r">${fmtBRL(x[1])}</td></tr>`).join('');
+  return `
     <div class="kpis">${kpi('Custo total',fmtBRL(e.custoTotal),'accent')}${kpi('Preço total',fmtBRL(e.precoTotal))}
       ${kpi('Lucro',fmtBRL(e.lucroRS))}${kpi('% Lucro',fmtPct(e.lucroPct))}${kpi('% Lucro s/ invest.',fmtPct(e.lucroSInvest))}${kpi('% MC',fmtPct(e.mcPct))}</div>
     <div class="grid-led">
@@ -509,9 +521,38 @@ function detalheProduto(cod){
         ${linha('ICMS',fmtPct(e.imp.EU))}${linha('Frete + tubete',fmtPct(e.imp.EV))}${linha('Comissão',fmtPct(p.comissao))}
         ${linha('Preço total',fmtBRL(e.precoTotal),true)}${linha('Margem de contribuição',fmtBRL(e.mcRS))}</table></div>
     </div>`;
+}
+
+function detalheProduto(cod){
+  const p=findSku(cod), e=calcularCustoTotalProduto(p), root=document.getElementById('content');
+  root.innerHTML=`
+    <div class="page-head"><div><button class="btn-ghost" id="voltar">← Produtos</button>
+      <h1>${p.descricao}</h1><p class="sub mono">${p.codigo} · ${p.grupo} · ${p.modelo} · ${fmtNum(p.qtd)} un</p></div>
+      <button class="btn" data-edit id="editar">Editar SKU</button></div>
+    ${blocoDetalheCusto(e,p)}`;
   document.getElementById('voltar').onclick=()=>go('produtos');
   if(CONFIG.editavel) document.getElementById('editar').onclick=()=>formProduto(p);
   configurarNav();
+}
+
+// detalhamento técnico de uma VENDA: motor recalculado na qtd e preço do pedido
+function detalheVenda(v){
+  const p=findSku(v.produto), root=document.getElementById('content');
+  const ctx=`Pedido ${v.pedido} · ${v.cliente||v.familia||'—'} · ${v.data} · ${fmtNum(v.qtd)} un`;
+  if(!p){
+    root.innerHTML=`
+      <div class="page-head"><div><button class="btn-ghost" id="voltar">← Vendas</button>
+        <h1>${v.descricao||v.produto}</h1><p class="sub mono">${ctx}</p></div></div>
+      <div class="aviso">O produto ${v.produto} não está no catálogo de SKUs (dados.json), então não há detalhamento técnico de custo. Cadastre o SKU em Produtos para ver a estrutura completa.</div>
+      <div class="kpis">${kpi('Receita',fmtBRL(v.receita),'accent')}${kpi('Quantidade',fmtNum(v.qtd))}${kpi('Preço unit.',fmtBRL(v.preco))}</div>`;
+    document.getElementById('voltar').onclick=()=>go('vendas'); configurarNav(); return;
+  }
+  const e=calcularCustoTotalProduto(p,{qtd:v.qtd,precoUnit:v.preco});
+  root.innerHTML=`
+    <div class="page-head"><div><button class="btn-ghost" id="voltar">← Vendas</button>
+      <h1>${p.descricao}</h1><p class="sub mono">${ctx} · ${p.codigo}</p></div></div>
+    ${blocoDetalheCusto(e,p)}`;
+  document.getElementById('voltar').onclick=()=>go('vendas'); configurarNav();
 }
 
 // reconstrói o objeto "cru" (cabeçalhos Excel) a partir do SKU normalizado
@@ -598,13 +639,14 @@ function renderVendas(root){
     <div class="card no-pad"><table class="full"><thead><tr>
       <th>Pedido</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>SKU</th><th class="r">Qtd</th>
       <th class="r">Receita</th><th class="r">Custo</th><th class="r">Lucro</th><th class="r">% Lucro</th><th class="r">% MC</th></tr></thead>
-      <tbody>${vendas.slice(0,400).map(v=>{const f=fin(v);return `<tr>
+      <tbody>${vendas.slice(0,400).map((v,i)=>{const f=fin(v);return `<tr class="clickable" data-i="${i}">
         <td class="mono">${v.pedido}</td><td>${v.data}</td><td>${v.cliente||v.familia||'—'}</td><td>${v.vendedor||'—'}</td>
         <td class="mono">${v.produto}</td><td class="r">${fmtNum(v.qtd)}</td>
         <td class="r">${fmtBRL(f.receita)}</td><td class="r">${f.custo==null?'<span class="muted">—</span>':fmtBRL(f.custo)}</td>
         <td class="r">${fmtBRL(f.lucro)}</td><td class="r ${f.lucroPct<0.18?'neg':'pos'}">${fmtPct(f.lucroPct)}</td>
         <td class="r">${fmtPct(f.mcPct)}</td></tr>`;}).join('')}</tbody></table></div>
     ${vendas.length>400?`<p class="sub" style="margin-top:10px">Exibindo 400 de ${vendas.length} pedidos. O dashboard considera a base completa.</p>`:''}`;
+  document.querySelectorAll('tr.clickable').forEach(tr=>tr.onclick=()=>detalheVenda(vendas[+tr.dataset.i]));
   if(CONFIG.editavel){
     document.getElementById('nova-venda').onclick=()=>formVenda();
     document.getElementById('ir-importar').onclick=()=>go('importar');
@@ -783,6 +825,75 @@ function processarImport(){
     alert(`Base atualizada: ${vendas.length} pedidos. O arquivo vendas.json foi baixado — suba-o no repositório para publicar aos membros.`);
     go('vendas');
   };
+}
+
+// =====================================================================
+//  INSUMOS E PARÂMETROS (edição das tabelas de referência)
+// =====================================================================
+const CADASTROS=[
+  {id:'maquinas',label:'Máquinas',scalar:false,
+   fields:[{k:'vel',l:'Velocidade',t:'number'},{k:'un',l:'Unidade',t:'select',opts:['METROS','BATIDAS']},
+     {k:'hora',l:'Custo/hora',t:'number'},{k:'acerto',l:'Acerto/cor',t:'number'},{k:'perda',l:'Perda',t:'number'},
+     {k:'tempoAcerto',l:'Tempo acerto',t:'number'},{k:'tempoMin',l:'Tempo mín (h)',t:'number'},
+     {k:'metrosMin',l:'Metros mín',t:'number'},{k:'fator',l:'Fator',t:'number'}],
+   defaults:{fator:1,vel:0,un:'METROS',hora:0,acerto:0,perda:0,tempoAcerto:0,tempoMin:0,metrosMin:0}},
+  {id:'substratos',label:'Substratos',scalar:true,scalarKey:'valor',
+   fields:[{k:'valor',l:'R$/m² (Print)',t:'number'}]},
+  {id:'ribbons',label:'Ribbons',scalar:false,
+   fields:[{k:'altura',l:'Altura (mm)',t:'number'},{k:'unit',l:'R$ unitário',t:'number'}],defaults:{altura:0,unit:0}},
+  {id:'outros',label:'Outros insumos',scalar:false,upperKey:true,
+   fields:[{k:'g',l:'g/m² (consumo)',t:'number'},{k:'valor',l:'R$ unitário',t:'number'}],defaults:{g:0,valor:0}},
+  {id:'processos',label:'Processos',scalar:false,
+   fields:[{k:'acerto',l:'Acerto',t:'number'},{k:'vel',l:'Velocidade',t:'number'}],defaults:{acerto:0,vel:0}}
+];
+let insumoTab='maquinas';
+const escAttr=v=>String(v??'').replace(/"/g,'&quot;');
+
+function renderInsumos(root){
+  if(!CONFIG.editavel){ root.innerHTML='<div class="card"><p class="sub">Disponível apenas no modo de edição.</p></div>'; return; }
+  const cfg=CADASTROS.find(c=>c.id===insumoTab);
+  const tabs=CADASTROS.map(c=>`<button class="subtab ${c.id===insumoTab?'active':''}" data-tab="${c.id}">${c.label}</button>`).join('');
+  const entries=Object.entries(REF[cfg.id]||{});
+  const cols=cfg.fields;
+  const cell=(f,fv)=> f.t==='select'
+    ? `<td class="r"><select class="cel" data-k="${f.k}">${f.opts.map(o=>`<option ${String(fv[f.k])===o?'selected':''}>${o}</option>`).join('')}</select></td>`
+    : `<td class="r"><input class="cel" data-k="${f.k}" type="${f.t}" ${f.t==='number'?'step="any"':''} value="${escAttr(fv[f.k]??'')}"></td>`;
+  const rowHtml=(nome,val)=>{ const fv=cfg.scalar?{[cfg.scalarKey]:val}:(val||{});
+    return `<tr data-row><td><input class="cel nome" value="${escAttr(nome)}"></td>${cols.map(f=>cell(f,fv)).join('')}<td class="r"><button class="del" title="Remover">×</button></td></tr>`; };
+  root.innerHTML=`
+    <div class="page-head"><div><h1>Insumos e parâmetros</h1>
+      <p class="sub">Reajuste preços e dados técnicos. Reflete no cálculo de custo imediatamente.</p></div>
+      <div class="head-actions"><button class="btn-ghost" id="ins-add">+ Adicionar linha</button>
+        <button class="btn" id="ins-pub">Salvar e baixar dados.json</button></div></div>
+    <div class="subtabs">${tabs}</div>
+    <input class="filtro-grid" id="ins-filtro" placeholder="Filtrar por nome…">
+    <div class="card no-pad"><table class="full grid"><thead><tr><th>Nome</th>${cols.map(f=>`<th class="r">${f.l}</th>`).join('')}<th></th></tr></thead>
+      <tbody id="grid-body">${entries.map(([n,v])=>rowHtml(n,v)).join('')}</tbody></table></div>
+    <p class="sub" style="margin-top:10px">${entries.length} itens. Renomear uma máquina exige atualizar os SKUs que a utilizam.</p>`;
+  document.querySelectorAll('.subtab').forEach(b=>b.onclick=()=>{ aplicarGrid(cfg); insumoTab=b.dataset.tab; render(); });
+  document.getElementById('ins-add').onclick=()=>{ const tb=document.getElementById('grid-body');
+    const tmp=document.createElement('tbody'); tmp.innerHTML=rowHtml('', cfg.scalar?0:(cfg.defaults||{})); tb.appendChild(tmp.firstChild); bindDel(); };
+  document.getElementById('ins-pub').onclick=()=>{ aplicarGrid(cfg); publicarDados();
+    alert('Alterações aplicadas e dados.json baixado. Suba o arquivo no repositório para publicar.'); };
+  document.getElementById('ins-filtro').oninput=e=>{ const q=e.target.value.toLowerCase();
+    document.querySelectorAll('#grid-body tr').forEach(tr=>{ tr.style.display=tr.querySelector('.nome').value.toLowerCase().includes(q)?'':'none'; }); };
+  bindDel(); configurarNav();
+}
+function bindDel(){ document.querySelectorAll('.del').forEach(b=>b.onclick=()=>b.closest('tr').remove()); }
+function aplicarGrid(cfg){
+  if(!document.getElementById('grid-body')) return;
+  const obj={};
+  document.querySelectorAll('#grid-body tr').forEach(tr=>{
+    let nome=tr.querySelector('.nome').value.trim(); if(!nome) return;
+    if(cfg.upperKey) nome=nome.toUpperCase();
+    if(cfg.scalar){ obj[nome]=num(tr.querySelector('[data-k]').value); return; }
+    const o={};
+    tr.querySelectorAll('[data-k]').forEach(inp=>{ const k=inp.dataset.k;
+      o[k]= inp.type==='number' ? num(inp.value) : String(inp.value).trim(); });
+    if(cfg.defaults) Object.keys(cfg.defaults).forEach(k=>{ if(o[k]===undefined||o[k]==='') o[k]=cfg.defaults[k]; });
+    obj[nome]=o;
+  });
+  REF[cfg.id]=obj;
 }
 
 // ---- bootstrap -------------------------------------------------------
