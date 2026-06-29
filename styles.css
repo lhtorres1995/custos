@@ -104,3 +104,19 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--r
 .map-mode label{display:flex;align-items:center;gap:6px;cursor:pointer}
 .fld small{font-weight:400;color:#9aa0a8}
 .aviso{background:#fdeef0;border:1px solid #f3c9cf;color:#9c1b2c;padding:11px 15px;border-radius:8px;font-size:13px;margin-top:14px}
+
+/* ---- tela Insumos (grades editáveis) ---- */
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.subtab{background:var(--surface);border:1px solid var(--line);color:var(--ink2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+.subtab:hover{border-color:var(--ink2)}
+.subtab.active{background:var(--red);color:#fff;border-color:var(--red)}
+.filtro-grid{width:260px;max-width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:12px}
+table.grid th{font-size:11px}
+table.grid td{padding:5px 8px;border-bottom:1px solid #f0f1f3}
+.cel{width:100%;min-width:70px;padding:6px 8px;border:1px solid transparent;border-radius:6px;font-size:13px;background:#fafbfc;color:var(--ink)}
+.cel:hover{border-color:var(--line)}
+.cel:focus{outline:none;border-color:var(--red);background:#fff}
+.cel.nome{min-width:200px;font-weight:600;text-align:left}
+td.r .cel{text-align:right}
+.del{border:none;background:transparent;color:#c0c4ca;font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
+.del:hover{color:var(--red)}
