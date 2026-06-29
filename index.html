@@ -20,7 +20,7 @@
       <div class="nav-item" data-view="importar" data-edit><span class="ic">&#10499;</span><span>Importar</span></div>
       <div class="nav-item" data-view="insumos" data-edit><span class="ic">&#9881;</span><span>Insumos</span></div>
     </nav>
-    <div class="side-foot"><span class="src-note">Fonte: dados.json &middot; vendas.json</span></div>
+    <div class="side-foot"><span class="src-note">v3 &middot; dados.json &middot; vendas.json</span></div>
   </aside>
   <main>
     <div id="viewer-banner" class="viewer-banner" style="display:none">Modo visualizacao &middot; dados somente leitura</div>
@@ -29,6 +29,9 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="app.js"></script>
+<script>
+  // carrega o app sempre fresco (evita cache antigo após atualizações)
+  (function(){ var s=document.createElement('script'); s.src='app.js?t='+Date.now(); document.body.appendChild(s); })();
+</script>
 </body>
 </html>
