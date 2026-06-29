@@ -54,3 +54,30 @@ Como tudo é `fetch` de raw URL, não há token nem escrita exposta.
 Editou um SKU ou precisa atualizar preço de substrato/alíquota? Faça a alteração,
 clique **Baixar dados.json** (tela Produtos) e suba o arquivo. Uma mudança de custo
 não exige tocar no código.
+
+
+## Mapeamento confirmado com o seu extrato do ERP (iQuattro)
+
+Testado com o relatório "Pedido de Venda". Reconhecimento automático das colunas:
+
+| Coluna do ERP | Vira |
+|---|---|
+| Emissão | Data |
+| Pedido | Pedido |
+| Cliente | Cliente |
+| Família de cliente | Família |
+| Segmento de Atuação | Segmento |
+| Vendedor 1 | Vendedor |
+| Produto | Produto (código) |
+| Descrição | Descrição |
+| Qtde. Pedido | Quantidade |
+| R$ Un. | Preço unit. |
+| R$ Pedido | Receita |
+
+Tratamentos automáticos na importação:
+- **Linhas secundárias** (continuação sem Produto) são descartadas. Cada pedido entra uma vez.
+- **Códigos na frente dos nomes** ("001 - HENKEL", "0005 - QUIMICO") são removidos para agrupar certo.
+- Como o extrato **não traz custo**, a margem é calculada pelo motor a partir do SKU. Produtos que ainda não estão no `dados.json` entram só com receita (sinalizados como "sem custo"). Mantenha o catálogo de SKUs atualizado para margem completa.
+
+### Recomendação sobre a base inicial
+O `vendas.json` que veio pronto foi montado do seu Power BI e usa nomes completos (ex.: "ALEXANDRE FRANCO"). O ERP abrevia alguns ("ALEXANDRE FRANC"). Para evitar dois rótulos do mesmo vendedor, o caminho mais limpo é: na primeira importação do ERP, escolha **Substituir a base inteira** com o período que você quer. A partir daí, use **Adicionar** todo dia. Assim toda a base fala a mesma língua do ERP.
