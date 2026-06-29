@@ -677,7 +677,7 @@ function lerArquivo(ev){
     try{
       const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      rows=XLSX.utils.sheet_to_json(ws,{raw:false,defval:''});
+      rows=XLSX.utils.sheet_to_json(ws,{raw:true,defval:''});
     }catch(err){ document.getElementById('map-area').innerHTML=`<div class="erro"><p>Falha ao ler o arquivo: ${err.message}</p></div>`; return; }
     if(!rows.length){ document.getElementById('map-area').innerHTML='<div class="card"><p class="sub">Nenhuma linha encontrada.</p></div>'; return; }
     importBuffer=rows;
@@ -690,7 +690,7 @@ function autoMap(headers,k){
   const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\$/g,'s').replace(/[^a-z0-9]/g,'');
   const alvo={pedido:['pedido','nrpedido','numero','numpedido'],data:['emissao','data','dtemissao','dataemissao'],
     cliente:['cliente','razaosocial','nomecliente'],familia:['familiadecliente','familia'],
-    segmento:['segmentodeatividade','segmento'],vendedor:['vendedor1','vendedor','representante'],
+    segmento:['segmentodeatuacao','segmentodeatividade','segmento'],vendedor:['vendedor1','vendedor','representante'],
     produto:['produto','codproduto','sku','codigo','codprod'],descricao:['descricao','descricaodoproduto','desc'],
     grupo:['grupodoproduto','grupo'],qtd:['qtdepedido','quantidade','qtd','qtde'],
     preco:['rsun','rsunitario','precounit','precounitario','valorunit','valorunitario','vlrunit'],
@@ -728,26 +728,38 @@ function processarImport(){
   const falta=CAMPOS.filter(c=>c.req&&!map[c.k]).map(c=>c.l);
   if(falta.length){ alert('Mapeie os campos obrigatórios: '+falta.join(', ')); return; }
   const get=(row,k)=> map[k]!=null ? row[map[k]] : undefined;
-  const novas=importBuffer.map(row=>{
+  // remove código na frente do nome: "001 - HENKEL" -> "HENKEL"; "000031-HENKEL - JUNDIAI" -> "HENKEL - JUNDIAI"
+  const limpar=v=>String(v||'').trim().replace(/^\d+\s*-\s*/,'').trim();
+  const novas=[];
+  importBuffer.forEach(row=>{
     const produto=String(get(row,'produto')||'').trim();
+    if(!produto) return;                       // pula linhas secundárias/rodapé (sem Produto)
     const s=findSku(produto);
-    const v={pedido:get(row,'pedido'),data:pdata(get(row,'data')),cliente:String(get(row,'cliente')||'').trim(),
-      familia:map.familia?String(get(row,'familia')).trim():(String(get(row,'cliente')||'').trim()),
-      segmento:map.segmento?String(get(row,'segmento')).trim():'OUTROS',vendedor:String(get(row,'vendedor')||'').trim(),
+    const v={pedido:get(row,'pedido'),data:pdata(get(row,'data')),cliente:limpar(get(row,'cliente')),
+      familia:map.familia?limpar(get(row,'familia')):limpar(get(row,'cliente')),
+      segmento:map.segmento?limpar(get(row,'segmento')):'OUTROS',vendedor:limpar(get(row,'vendedor')),
       produto,descricao:map.descricao?String(get(row,'descricao')).trim():(s?s.descricao:''),
-      grupo:map.grupo?String(get(row,'grupo')).trim():(s?s.grupo:''),qtd:pnum(get(row,'qtd')),preco:pnum(get(row,'preco'))};
-    // financeiro: do extrato se mapeado; senão pelo motor; senão receita simples
-    if(map.receita){ v.receita=pnum(get(row,'receita')); v.custo=map.custo?pnum(get(row,'custo')):null;
-      v.lucro=map.lucro?pnum(get(row,'lucro')):(v.custo!=null?v.receita-v.custo:null);
-      v.mc=map.mc?pnum(get(row,'mc')):null;
-      v.lucroPct=v.receita&&v.lucro!=null?v.lucro/v.receita:null; v.mcPct=v.receita&&v.mc!=null?v.mc/v.receita:null;
-    } else if(s){ const e=calcularCustoTotalProduto(s,{qtd:v.qtd,precoUnit:v.preco});
-      v.receita=+e.precoTotal.toFixed(2);v.custo=+e.custoTotal.toFixed(2);v.lucro=+e.lucroRS.toFixed(2);
-      v.lucroPct=+e.lucroPct.toFixed(4);v.mc=+e.mcRS.toFixed(2);v.mcPct=+e.mcPct.toFixed(4);
-    } else { v.receita=+(v.qtd*v.preco).toFixed(2);v.custo=null;v.lucro=0;v.lucroPct=0;v.mc=0;v.mcPct=0; }
-    return v;
+      grupo:map.grupo?limpar(get(row,'grupo')):(s?s.grupo:''),qtd:pnum(get(row,'qtd')),preco:pnum(get(row,'preco'))};
+    // PRIORIDADE do financeiro:
+    // 1) extrato com custo completo -> usa direto  2) tem SKU -> motor calcula tudo
+    // 3) extrato só com receita -> receita  4) nada -> receita = qtd*preço
+    if(map.receita && map.custo){
+      v.receita=pnum(get(row,'receita')); v.custo=pnum(get(row,'custo'));
+      v.lucro=map.lucro?pnum(get(row,'lucro')):v.receita-v.custo; v.mc=map.mc?pnum(get(row,'mc')):null;
+      v.lucroPct=v.receita?v.lucro/v.receita:0; v.mcPct=v.receita&&v.mc!=null?v.mc/v.receita:null;
+    } else if(s){
+      const e=calcularCustoTotalProduto(s,{qtd:v.qtd,precoUnit:v.preco});
+      v.receita=map.receita?pnum(get(row,'receita')):+e.precoTotal.toFixed(2);
+      v.custo=+e.custoTotal.toFixed(2); v.lucro=+e.lucroRS.toFixed(2);
+      v.lucroPct=+e.lucroPct.toFixed(4); v.mc=+e.mcRS.toFixed(2); v.mcPct=+e.mcPct.toFixed(4);
+    } else if(map.receita){
+      v.receita=pnum(get(row,'receita')); v.custo=null; v.lucro=0; v.lucroPct=0; v.mc=0; v.mcPct=0;
+    } else {
+      v.receita=+(v.qtd*v.preco).toFixed(2); v.custo=null; v.lucro=0; v.lucroPct=0; v.mc=0; v.mcPct=0;
+    }
+    novas.push(v);
   });
-  const semSku=novas.filter(v=>!findSku(v.produto)&&v.custo==null).length;
+  const semSku=novas.filter(v=>v.custo==null).length;
   const modo=document.querySelector('[name="modo"]:checked').value;
   let receita=0,lucro=0; novas.forEach(v=>{receita+=v.receita||0;lucro+=v.lucro||0;});
   const meses=[...new Set(novas.map(v=>v.data.slice(0,7)))].sort();
