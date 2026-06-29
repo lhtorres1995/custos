@@ -81,3 +81,24 @@ Tratamentos automáticos na importação:
 
 ### Recomendação sobre a base inicial
 O `vendas.json` que veio pronto foi montado do seu Power BI e usa nomes completos (ex.: "ALEXANDRE FRANCO"). O ERP abrevia alguns ("ALEXANDRE FRANC"). Para evitar dois rótulos do mesmo vendedor, o caminho mais limpo é: na primeira importação do ERP, escolha **Substituir a base inteira** com o período que você quer. A partir daí, use **Adicionar** todo dia. Assim toda a base fala a mesma língua do ERP.
+
+## Tela Insumos (reajustes de preço e parâmetros)
+
+No menu **Insumos** você edita as tabelas que alimentam o motor de custo, sem abrir o `dados.json` na mão:
+
+- **Máquinas**: custo/hora, velocidade, perdas, tempos, unidade (Metros/Batidas).
+- **Substratos**: preço por m².
+- **Ribbons**: altura e preço unitário.
+- **Outros insumos**: tintas, vernizes, clichês, cold/hot stamping (consumo g/m² e preço).
+- **Processos**: parâmetros de acabamento (ex.: hot stamping).
+
+Como usar um reajuste:
+1. Abra **Insumos**, escolha a aba (ex.: Substratos), use o filtro para achar o item.
+2. Altere o valor direto na célula.
+3. Clique **Salvar e baixar dados.json**.
+4. Suba o `dados.json` no repositório. Os custos de todos os SKUs se atualizam.
+
+Você também pode **adicionar** um insumo novo (botão "+ Adicionar linha") ou **remover** (× no fim da linha).
+
+> Atenção: se renomear uma máquina, atualize os SKUs que a usam (o nome é a chave de ligação).
+> Esta tela só aparece no modo de edição; na cópia em modo leitura para a equipe, fica oculta.
