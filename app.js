@@ -374,6 +374,7 @@ function render(){
   else if(view==='vendas') renderVendas(root);
   else if(view==='importar') renderImportar(root);
   else if(view==='insumos') renderInsumos(root);
+  else if(view==='orcamento') renderOrcamento(root);
 }
 
 // =====================================================================
@@ -571,55 +572,69 @@ function desnormalizarSKU(p){
     '$ Faca':p.faca,'Invest. P/ Etiq.':p.investEtiq,'% Comissão':p.comissao,'$ Preço Unit.':p.precoUnit,'NF':p.nf};
 }
 
-function formProduto(edit){
-  const p=edit||{maquinas:[]}, root=document.getElementById('content');
-  const f=(l,k,t='number',v='')=>`<label class="fld"><span>${l}</span><input name="${k}" type="${t}" value="${edit?(p[k]??''):v}"></label>`;
-  const sel=(l,k,opts,v='')=>`<label class="fld"><span>${l}</span><select name="${k}">${opts.map(o=>`<option ${(edit?p[k]:v)===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
-  const sn=(l,k)=>sel(l,k,['NÃO','SIM']);
+// campos técnicos reutilizáveis (SKU e Orçamento) — prefill a partir de um SKU normalizado
+function camposTecnicosHTML(p){
+  p=p||{}; const m=p.maquinas||[]; const mk=i=>(m[i]&&m[i].nome)||'NÃO HÁ';
+  const f=(l,k,t='number',def='')=>`<label class="fld"><span>${l}</span><input name="${k}" type="${t}" ${t==='number'?'step="any"':''} value="${escAttr(p[k]??def)}"></label>`;
+  const sel=(l,k,opts,val)=>`<label class="fld"><span>${l}</span><select name="${k}">${opts.map(o=>`<option ${String(val??'')===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
+  const sn=(l,k)=>sel(l,k,['NÃO','SIM'],p[k]||'NÃO');
   const maqOpts=['NÃO HÁ',...Object.keys(REF.maquinas).filter(x=>x!=='NÃO HÁ')];
   const subOpts=['NÃO',...Object.keys(REF.substratos)], ribOpts=['NÃO',...Object.keys(REF.ribbons)];
+  return `
+    <fieldset><legend>Identificação</legend><div class="fgrid">
+      <label class="fld"><span>Código</span><input name="codigo" value="${escAttr(p.codigo||'')}"></label>
+      <label class="fld wide"><span>Descrição</span><input name="descricao" value="${escAttr(p.descricao||'')}"></label>
+      ${sel('Grupo','grupo',['ETIQUETAS','RÓTULOS','COMODATO','RIBBON','PEÇA','LOCAÇÃO'],p.grupo)}
+      ${sel('Modelo técnico','modelo',['SEM IMPRESSÃO','FLEXOGRÁFICO','DIGITAL'],p.modelo)}${f('Quantidade','qtd')}</div></fieldset>
+    <fieldset><legend>Dados técnicos</legend><div class="fgrid">
+      ${f('Largura (mm)','larg')}${f('Altura (mm)','alt')}${f('Gap (mm)','gap')}${f('Entre carreiras','entreCarr')}
+      ${f('Esqueleto','esqueleto')}${f('Repetições','rep')}${f('Carreiras produção','carrProd')}${f('Carreiras entrega','carrEntrega')}
+      ${f('Bocas Turo','bocasTuro')}${f('Qntd. modelos','qtdModelos')}${f('Cores CMYK','coresCMYK')}${sn('Cores branco','coresBranco')}${f('Ocupação tinta %','ocupTinta')}</div></fieldset>
+    <fieldset><legend>Substratos & ribbon</legend><div class="fgrid">
+      ${sel('Substrato 1','sub1',subOpts,p.sub1)}${f('Largura sub 1','sub1Larg')}${sel('Substrato 2','sub2',subOpts,p.sub2)}${f('Largura sub 2','sub2Larg')}
+      ${sel('Substrato 3','sub3',subOpts,p.sub3)}${f('Largura sub 3','sub3Larg')}${sel('Ribbon','ribbon',ribOpts,p.ribbon)}${f('Carreiras ribbon','carrRibbon')}</div></fieldset>
+    <fieldset><legend>Acabamentos</legend><div class="fgrid">
+      ${sn('Clichês','cliches')}${sn('Cold stamping','cold')}${sn('Hot stamping','hot')}${sn('Verniz parcial','vpSN')}${f('Tipo verniz parcial','vpTipo','text')}
+      ${sn('Verniz total','vtSN')}${f('Tipo verniz total','vtTipo','text')}${f('Ocupação verniz %','ocupVerniz')}</div></fieldset>
+    <fieldset><legend>Processo (máquinas)</legend><div class="fgrid">
+      ${[0,1,2,3,4,5].map(i=>sel('Máquina '+(i+1),'maq'+i,maqOpts,mk(i))).join('')}</div></fieldset>`;
+}
+// lê um formulário (técnico + comercial) e devolve um SKU normalizado
+function lerFormSKU(formId){
+  const fd=new FormData(document.getElementById(formId)), g=k=>fd.get(k);
+  const novo=normalizarSKU({'Produto':g('codigo'),'Descrição do Produto':g('descricao'),'Grupo do Produto':g('grupo'),
+    'Quantidade':g('qtd'),'Modelo Técnico':g('modelo'),'Largura':g('larg'),'Entre Carreiras':g('entreCarr'),
+    'Esqueleto':g('esqueleto'),'Altura':g('alt'),'Gap':g('gap'),'Repetições':g('rep'),'Carreiras de Produção':g('carrProd'),
+    'Carreiras de Entrega':g('carrEntrega'),'Bocas Turo':g('bocasTuro'),'Qntd. Modelos':g('qtdModelos'),
+    'Cores (CMYK)':g('coresCMYK'),'Cores (Branco)':g('coresBranco'),'Ocupação Tinta %':g('ocupTinta'),
+    '(Clichês) Sim ou Não?':g('cliches'),'(Verniz Parcial) Sim ou não?':g('vpSN'),'(Verniz Parcial) Tipo':g('vpTipo'),
+    '(Verniz Total) Sim ou não?':g('vtSN'),'(Verniz Total) Tipo':g('vtTipo'),'Ocupação Verniz %':g('ocupVerniz'),
+    'Cold Stamping':g('cold'),'Hot Stamping':g('hot'),'Substrato 1':g('sub1'),'(Substrato 1) Largura':g('sub1Larg'),
+    'Substrato 2':g('sub2'),'(Substrato 2) Largura':g('sub2Larg'),'Substrato 3':g('sub3'),'(Substrato 3) Largura':g('sub3Larg'),
+    'Ribbon':g('ribbon'),'Carreiras Ribbon':g('carrRibbon'),'(Máquina 1)':g('maq0'),'(Máquina 2)':g('maq1'),
+    '(Máquina 3)':g('maq2'),'(Máquina 4)':g('maq3'),'(Máquina 5)':g('maq4'),'(Máquina 6)':g('maq5'),
+    '$ Faca':g('faca'),'Invest. P/ Etiq.':g('investEtiq'),'% Comissão':g('comissao'),'$ Preço Unit.':g('precoUnit')||0,'NF':g('nf')});
+  novo.icms=num(g('icms'))||0.18;
+  return novo;
+}
+
+function formProduto(edit){
+  const p=edit||{}, root=document.getElementById('content');
+  const c=(l,k,t='number',def='')=>`<label class="fld"><span>${l}</span><input name="${k}" type="${t}" ${t==='number'?'step="any"':''} value="${escAttr(p[k]??def)}"></label>`;
+  const csn=(l,k)=>`<label class="fld"><span>${l}</span><select name="${k}">${['NÃO','SIM'].map(o=>`<option ${(p[k]||'NÃO')===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
   root.innerHTML=`
     <div class="page-head"><div><button class="btn-ghost" id="voltar">← Produtos</button><h1>${edit?'Editar SKU':'Novo SKU'}</h1></div></div>
     <form id="form-sku" class="form">
-      <fieldset><legend>Identificação</legend><div class="fgrid">
-        <label class="fld"><span>Código</span><input name="codigo" value="${edit?p.codigo:''}"></label>
-        <label class="fld wide"><span>Descrição</span><input name="descricao" value="${edit?p.descricao:''}"></label>
-        ${sel('Grupo','grupo',['ETIQUETAS','RÓTULOS','COMODATO','RIBBON','PEÇA','LOCAÇÃO'])}
-        ${sel('Modelo técnico','modelo',['SEM IMPRESSÃO','FLEXOGRÁFICO','DIGITAL'])}${f('Quantidade','qtd')}</div></fieldset>
-      <fieldset><legend>Dados técnicos</legend><div class="fgrid">
-        ${f('Largura (mm)','larg')}${f('Altura (mm)','alt')}${f('Gap (mm)','gap')}${f('Entre carreiras','entreCarr')}
-        ${f('Esqueleto','esqueleto')}${f('Repetições','rep')}${f('Carreiras produção','carrProd')}${f('Carreiras entrega','carrEntrega')}
-        ${f('Bocas Turo','bocasTuro')}${f('Qntd. modelos','qtdModelos')}${f('Cores CMYK','coresCMYK')}${sn('Cores branco','coresBranco')}${f('Ocupação tinta %','ocupTinta')}</div></fieldset>
-      <fieldset><legend>Substratos & ribbon</legend><div class="fgrid">
-        ${sel('Substrato 1','sub1',subOpts)}${f('Largura sub 1','sub1Larg')}${sel('Substrato 2','sub2',subOpts)}${f('Largura sub 2','sub2Larg')}
-        ${sel('Substrato 3','sub3',subOpts)}${f('Largura sub 3','sub3Larg')}${sel('Ribbon','ribbon',ribOpts)}${f('Carreiras ribbon','carrRibbon')}</div></fieldset>
-      <fieldset><legend>Acabamentos</legend><div class="fgrid">
-        ${sn('Clichês','cliches')}${sn('Cold stamping','cold')}${sn('Hot stamping','hot')}${sn('Verniz parcial','vpSN')}${f('Tipo verniz parcial','vpTipo','text')}
-        ${sn('Verniz total','vtSN')}${f('Tipo verniz total','vtTipo','text')}${f('Ocupação verniz %','ocupVerniz')}</div></fieldset>
-      <fieldset><legend>Processo (máquinas)</legend><div class="fgrid">
-        ${[0,1,2,3,4,5].map(i=>sel('Máquina '+(i+1),'maq'+i,maqOpts)).join('')}</div></fieldset>
+      ${camposTecnicosHTML(p)}
       <fieldset><legend>Comercial</legend><div class="fgrid">
-        ${f('$ Faca','faca')}${f('Invest. p/ etiq.','investEtiq')}${f('Comissão (fração, ex 0.03)','comissao')}
-        ${f('Preço unitário','precoUnit')}${f('ICMS (fração, ex 0.18)','icms')}${sn('Emite NF','nf')}</div></fieldset>
+        ${c('$ Faca','faca')}${c('Invest. p/ etiq.','investEtiq')}${c('Comissão (fração, ex 0.03)','comissao')}
+        ${c('Preço unitário','precoUnit')}${c('ICMS (fração, ex 0.18)','icms')}${csn('Emite NF','nf')}</div></fieldset>
       <div class="form-actions"><button type="button" class="btn-ghost" id="cancelar">Cancelar</button><button type="button" class="btn" id="salvar-sku">Salvar SKU</button></div>
     </form>`;
   document.getElementById('voltar').onclick=()=>go('produtos');
   document.getElementById('cancelar').onclick=()=>go('produtos');
   document.getElementById('salvar-sku').onclick=()=>{
-    const fd=new FormData(document.getElementById('form-sku')), g=k=>fd.get(k);
-    const novo=normalizarSKU({'Produto':g('codigo'),'Descrição do Produto':g('descricao'),'Grupo do Produto':g('grupo'),
-      'Quantidade':g('qtd'),'Modelo Técnico':g('modelo'),'Largura':g('larg'),'Entre Carreiras':g('entreCarr'),
-      'Esqueleto':g('esqueleto'),'Altura':g('alt'),'Gap':g('gap'),'Repetições':g('rep'),'Carreiras de Produção':g('carrProd'),
-      'Carreiras de Entrega':g('carrEntrega'),'Bocas Turo':g('bocasTuro'),'Qntd. Modelos':g('qtdModelos'),
-      'Cores (CMYK)':g('coresCMYK'),'Cores (Branco)':g('coresBranco'),'Ocupação Tinta %':g('ocupTinta'),
-      '(Clichês) Sim ou Não?':g('cliches'),'(Verniz Parcial) Sim ou não?':g('vpSN'),'(Verniz Parcial) Tipo':g('vpTipo'),
-      '(Verniz Total) Sim ou não?':g('vtSN'),'(Verniz Total) Tipo':g('vtTipo'),'Ocupação Verniz %':g('ocupVerniz'),
-      'Cold Stamping':g('cold'),'Hot Stamping':g('hot'),'Substrato 1':g('sub1'),'(Substrato 1) Largura':g('sub1Larg'),
-      'Substrato 2':g('sub2'),'(Substrato 2) Largura':g('sub2Larg'),'Substrato 3':g('sub3'),'(Substrato 3) Largura':g('sub3Larg'),
-      'Ribbon':g('ribbon'),'Carreiras Ribbon':g('carrRibbon'),'(Máquina 1)':g('maq0'),'(Máquina 2)':g('maq1'),
-      '(Máquina 3)':g('maq2'),'(Máquina 4)':g('maq3'),'(Máquina 5)':g('maq4'),'(Máquina 6)':g('maq5'),
-      '$ Faca':g('faca'),'Invest. P/ Etiq.':g('investEtiq'),'% Comissão':g('comissao'),'$ Preço Unit.':g('precoUnit'),'NF':g('nf')});
-    novo.icms=num(g('icms'))||0.18;
+    const novo=lerFormSKU('form-sku');
     if(edit){const i=produtos.findIndex(x=>x.codigo===edit.codigo);produtos[i]=novo;} else produtos.push(novo);
     alert('SKU salvo em memória. Use "Baixar dados.json" para publicar a estrutura atualizada.');
     go('produtos');
@@ -894,6 +909,92 @@ function aplicarGrid(cfg){
     obj[nome]=o;
   });
   REF[cfg.id]=obj;
+}
+
+// =====================================================================
+//  ORÇAMENTOS (preço a partir da margem alvo, por faixa de quantidade)
+// =====================================================================
+// inverte a fórmula: dado um %Lucro alvo, calcula o preço necessário.
+// EY = ES / (1 - (outros+icms+frete+comissão) - margem),  ES = custo c/ PIS/COFINS
+function precoPorMargem(sku, qtd, margem){
+  const e=calcularCustoTotalProduto(sku,{qtd, precoUnit:1});  // preço unitário não afeta o custo/ES
+  const ES=e.imp.ES, taxa=e.imp.ET+e.imp.EU+e.imp.EV+sku.comissao;
+  const denom=1-taxa-margem;
+  if(denom<=0) return {viavel:false, custoTotal:e.EQ, maxMargem:1-taxa};
+  const EY=ES/denom, pu=EY/qtd;
+  const conf=calcularCustoTotalProduto(sku,{qtd, precoUnit:pu});  // confirma rodando o motor no preço achado
+  return {viavel:true, precoUnit:pu, total:EY, custoTotal:conf.EQ, lucroPct:conf.lucroPct, mcPct:conf.mcPct};
+}
+let orcBaseCod='';
+function renderOrcamento(root){
+  if(!CONFIG.editavel){ root.innerHTML='<div class="card"><p class="sub">Disponível apenas no modo de edição.</p></div>'; return; }
+  const base=orcBaseCod?findSku(orcBaseCod):{};
+  const hoje=new Date(), val=new Date(hoje.getTime()+15*86400000);
+  root.innerHTML=`
+    <div class="page-head"><div><h1>Orçamento de etiquetas</h1>
+      <p class="sub">Defina a margem alvo e as quantidades. O preço é calculado pelo motor de custo.</p></div></div>
+    <form id="form-orc" class="form">
+      <fieldset><legend>Cliente</legend><div class="fgrid">
+        <label class="fld wide"><span>Cliente / empresa</span><input name="oc_cliente"></label>
+        <label class="fld"><span>Contato</span><input name="oc_contato"></label>
+        <label class="fld"><span>Validade</span><input name="oc_validade" type="date" value="${val.toISOString().slice(0,10)}"></label>
+      </div></fieldset>
+      <fieldset><legend>Base técnica</legend><div class="fgrid">
+        <label class="fld wide"><span>Partir de um SKU do catálogo (ou preencha do zero abaixo)</span>
+          <select name="oc_base" id="oc-base"><option value="">— Etiqueta nova —</option>
+          ${produtos.map(p=>`<option value="${p.codigo}" ${p.codigo===orcBaseCod?'selected':''}>${p.codigo} — ${p.descricao}</option>`).join('')}</select></label>
+      </div></fieldset>
+      ${camposTecnicosHTML(base)}
+      <fieldset><legend>Condições comerciais</legend><div class="fgrid">
+        <label class="fld"><span>$ Faca</span><input name="faca" type="number" step="any" value="${base.faca??0}"></label>
+        <label class="fld"><span>Invest. p/ etiq.</span><input name="investEtiq" type="number" step="any" value="${base.investEtiq??0}"></label>
+        <label class="fld"><span>Comissão (fração, ex 0.03)</span><input name="comissao" type="number" step="any" value="${base.comissao??0.03}"></label>
+        <label class="fld"><span>ICMS (fração, ex 0.18)</span><input name="icms" type="number" step="any" value="${base.icms??0.18}"></label>
+        <label class="fld"><span>Emite NF</span><select name="nf"><option ${base.nf!=='NÃO'?'selected':''}>SIM</option><option ${base.nf==='NÃO'?'selected':''}>NÃO</option></select></label>
+        <label class="fld"><span>Margem de lucro alvo (%)</span><input name="oc_margem" type="number" step="any" value="25"></label>
+        <label class="fld wide"><span>Quantidades a cotar (separadas por vírgula)</span><input name="oc_qtds" value="1000, 5000, 10000, 20000, 50000"></label>
+      </div></fieldset>
+      <div class="form-actions"><button type="button" class="btn" id="oc-calc">Calcular orçamento</button></div>
+    </form>
+    <div id="orc-result"></div>`;
+  document.getElementById('oc-base').onchange=e=>{ orcBaseCod=e.target.value; render(); };
+  document.getElementById('oc-calc').onclick=calcularOrcamento;
+  configurarNav();
+}
+function calcularOrcamento(){
+  const fd=new FormData(document.getElementById('form-orc')), g=k=>fd.get(k);
+  const sku=lerFormSKU('form-orc');
+  const margem=num(g('oc_margem'))/100;
+  const qtds=String(g('oc_qtds')).split(/[,;\s]+/).map(x=>num(x)).filter(q=>q>0);
+  if(!qtds.length){ alert('Informe ao menos uma quantidade.'); return; }
+  const rows=qtds.map(q=>({q, r:precoPorMargem(sku,q,margem)}));
+  const inviavel=rows.find(x=>!x.r.viavel);
+  const dados={cliente:g('oc_cliente')||'—',contato:g('oc_contato')||'',validade:g('oc_validade')||'',
+    margem, descricao:sku.descricao||'Etiqueta', codigo:sku.codigo||'', modelo:sku.modelo,
+    dim:`${fmtNum(sku.larg)} x ${fmtNum(sku.alt)} mm`, substrato:sku.sub1, ribbon:sku.ribbon!=='NÃO'?sku.ribbon:'', rows};
+  const linhasTab=rows.map(({q,r})=>r.viavel
+    ? `<tr><td class="r">${fmtNum(q)}</td><td class="r">${(r.precoUnit).toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:6})}</td><td class="r">${fmtBRL(r.total)}</td><td class="r">${fmtPct(r.lucroPct)}</td><td class="r">${fmtPct(r.mcPct)}</td></tr>`
+    : `<tr><td class="r">${fmtNum(q)}</td><td colspan="4" class="neg">Margem inviável (máx ≈ ${fmtPct(r.maxMargem)} para esta carga tributária)</td></tr>`).join('');
+  document.getElementById('orc-result').innerHTML=`
+    ${inviavel?`<div class="aviso">Algumas quantidades não comportam ${fmtPct(margem)} de lucro com os impostos e comissão atuais. Reduza a margem alvo.</div>`:''}
+    <div class="card" style="margin-top:18px"><h3>Resultado</h3>
+      <table class="full"><thead><tr><th class="r">Quantidade</th><th class="r">Preço unit. (R$)</th><th class="r">Total</th><th class="r">% Lucro</th><th class="r">% MC</th></tr></thead><tbody>${linhasTab}</tbody></table></div>
+    <div class="form-actions" style="margin-top:14px"><button type="button" class="btn-ghost" id="oc-print">Imprimir / Salvar PDF</button></div>
+    ${montarProposta(dados)}`;
+  document.getElementById('oc-print').onclick=()=>window.print();
+}
+function montarProposta(d){
+  const linhas=d.rows.filter(x=>x.r.viavel).map(({q,r})=>`<tr><td class="r">${fmtNum(q)} un</td><td class="r">R$ ${(r.precoUnit).toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:6})}</td><td class="r">${fmtBRL(r.total)}</td></tr>`).join('');
+  const validade=d.validade?d.validade.split('-').reverse().join('/'):'';
+  return `<div id="orc-print" class="proposta">
+    <div class="prop-head"><div class="prop-logo">D&A</div><div><b>D&A Print Solutions</b><div class="prop-sub">Proposta comercial de etiquetas</div></div>
+      <div class="prop-data">Emissão: ${new Date().toLocaleDateString('pt-BR')}${validade?'<br>Validade: '+validade:''}</div></div>
+    <div class="prop-cli"><b>Cliente:</b> ${d.cliente}${d.contato?' &nbsp;·&nbsp; <b>Contato:</b> '+d.contato:''}</div>
+    <div class="prop-item"><b>Item:</b> ${d.descricao}${d.codigo?' ('+d.codigo+')':''}<br>
+      <span class="prop-spec">Dimensão ${d.dim} &nbsp;·&nbsp; ${d.modelo}${d.substrato&&d.substrato!=='NÃO'?' &nbsp;·&nbsp; '+d.substrato:''}${d.ribbon?' &nbsp;·&nbsp; Ribbon: '+d.ribbon:''}</span></div>
+    <table class="prop-tab"><thead><tr><th class="r">Quantidade</th><th class="r">Preço unitário</th><th class="r">Valor total</th></tr></thead><tbody>${linhas}</tbody></table>
+    <div class="prop-obs">Valores com impostos, frete e comissão inclusos. Preços por milheiro variam conforme a quantidade pela diluição do acerto de máquina. Proposta sujeita a confirmação técnica.</div>
+  </div>`;
 }
 
 // ---- bootstrap -------------------------------------------------------
