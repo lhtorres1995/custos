@@ -120,3 +120,22 @@ table.grid td{padding:5px 8px;border-bottom:1px solid #f0f1f3}
 td.r .cel{text-align:right}
 .del{border:none;background:transparent;color:#c0c4ca;font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
 .del:hover{color:var(--red)}
+
+/* ---- Orçamento / proposta imprimível ---- */
+.proposta{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px;margin-top:18px;max-width:820px;box-shadow:var(--shadow)}
+.prop-head{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--red);padding-bottom:16px;margin-bottom:18px}
+.prop-logo{width:48px;height:48px;border-radius:8px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+.prop-head b{font-size:17px}.prop-sub{color:var(--ink2);font-size:13px}
+.prop-data{margin-left:auto;text-align:right;font-size:12px;color:var(--ink2)}
+.prop-cli{font-size:14px;margin-bottom:10px}
+.prop-item{font-size:14px;margin-bottom:18px;line-height:1.6}
+.prop-spec{color:var(--ink2);font-size:13px}
+.prop-tab{width:100%;border-collapse:collapse;margin-bottom:18px}
+.prop-tab th,.prop-tab td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.prop-tab th{background:#fafbfc;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2)}
+.prop-obs{font-size:12px;color:var(--ink2);border-top:1px solid var(--line);padding-top:12px}
+@media print{
+  body *{visibility:hidden}
+  #orc-print, #orc-print *{visibility:visible}
+  #orc-print{position:absolute;left:0;top:0;width:100%;margin:0;border:none;box-shadow:none}
+}
