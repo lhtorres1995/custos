@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&A · Custo Industrial + BI</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">D&A</div>
+      <div><b>Print Solutions</b><span>Custo + BI</span></div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" data-view="dashboard"><span class="ic">&#9635;</span><span>Dashboard</span></div>
+      <div class="nav-item" data-view="produtos"><span class="ic">&#11041;</span><span>Produtos</span></div>
+      <div class="nav-item" data-view="vendas"><span class="ic">&#8593;</span><span>Vendas</span></div>
+      <div class="nav-item" data-view="importar" data-edit><span class="ic">&#10499;</span><span>Importar</span></div>
+    </nav>
+    <div class="side-foot"><span class="src-note">Fonte: dados.json &middot; vendas.json</span></div>
+  </aside>
+  <main>
+    <div id="viewer-banner" class="viewer-banner" style="display:none">Modo visualizacao &middot; dados somente leitura</div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
